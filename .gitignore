@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+.ipynb_checkpoints/
+out/
+scripts/_raw_centros_educativos.json
+spark-warehouse/
+metastore_db/
+derby.log
+*.crc
+_SUCCESS
+.DS_Store
