@@ -74,8 +74,11 @@ naive metric, because these ownership groups form fairly compact clusters
 meters, and a more elongated group could easily flip the pick.
 
 **Centroid vs. medoid is the choice that actually moves the answer.**
-All four groups picked a *different* center under the two definitions,
-by 1.2-1.6 km each time:
+Both picks are real dataset rows -- verified by joining the picked
+`center_id` back against the source file, not just trusting the pipeline
+-- not synthetic averaged points; only the intermediate centroid location
+used to rank candidates is a computed average. All four groups picked a
+*different* center under the two definitions, by 1.2-1.6 km each time:
 
 | ownership | group size | centroid pick | medoid pick | apart |
 |---|---|---|---|---|
@@ -83,6 +86,41 @@ by 1.2-1.6 km each time:
 | PRIVADO CONCERTADO | 552 | Teide II | Real Colegio Santa Isabel-La Asunción | 1,260 m |
 | PUBLICO | 2,056 | San Isidro | San Eugenio y San Isidro | 1,221 m |
 | PUBLICO-TITULARIDAD PRIVADA | 22 | Escuela Infantil Complejo Cuzco | Centro Infantil Ministerio de Fomento | 1,479 m |
+
+*Why they diverge, checked against the data rather than assumed:* these
+ownership groups span the entire Comunidad de Madrid region -- a dense
+cluster of centers in Madrid city plus a long tail of centers in outlying
+towns tens of kilometers away. That's a skewed spatial distribution, and
+an arithmetic mean is not robust to skew: in every group, the mean
+(centroid) position sits 700 m-1.9 km away from the group's coordinate
+*median* (a skew-robust measure of "typical location"), because the
+distant, sparser tail pulls the average toward it even though most centers
+are nowhere near there:
+
+| ownership | mean-to-median offset | centers >20 km from the median point |
+|---|---|---|
+| PRIVADO | 1,104 m | 21% |
+| PRIVADO CONCERTADO | 719 m | 17% |
+| PUBLICO | 1,647 m | 36% |
+| PUBLICO-TITULARIDAD PRIVADA | 1,877 m | 9% |
+
+The medoid, which picks the point minimizing total distance to every other
+point, isn't pulled the same way: being near the *dense* cluster minimizes
+a sum far more effectively than sitting at the skewed geometric average
+does, so it stays anchored close to where centers actually concentrate. We
+checked this directly -- in 3 of the 4 groups, the medoid pick sits
+noticeably closer to the group's median position than the centroid pick
+does (e.g. PUBLICO: 111 m vs. 1,333 m from the median; PRIVADO: 375 m vs.
+1,336 m). We also checked the simpler "one extreme point" version of this
+hypothesis and it doesn't hold: removing only the single farthest-out
+center shifts the centroid by just 35-116 m in the three larger groups --
+nowhere near enough to explain a 1.2-1.6 km gap. It only becomes the
+dominant effect in the smallest group (n=22), where one point among 22
+has real leverage over the mean (removing it shifts the centroid 1,276 m,
+comparable to that group's full centroid-medoid gap). So the real driver
+is the region's overall urban-core-plus-rural-tail shape, not any single
+outlier -- see `scripts/compare_distance_methods.py` for the full
+per-group breakdown behind these numbers.
 
 Which definition is "right" depends entirely on what the result is for: a
 centroid pick minimizes distance from the *average* position (better if
@@ -100,11 +138,22 @@ gap by batching many rows into an Arrow-backed pandas Series per call, so
 serialization is columnar and the actual computation runs vectorized in
 C. The native implementation avoids Python entirely: the formula is built
 from `pyspark.sql.functions` primitives and compiles straight into
-Spark's JVM-native Catalyst/Tungsten execution plan. Measured on this
-project's dataset (local `[*]` Spark, 8 cores, mean of 5 runs each,
-`python -m src.benchmark`):
+Spark's JVM-native Catalyst/Tungsten execution plan.
 
-| implementation | n=3,851 (project dataset) | n=770,200 (200x replicated) |
+**What was actually measured:** both columns below come from the same
+single Windows machine, running Spark locally (`local[*]`, 8 cores) --
+there is no cluster involved anywhere in this benchmark. The "n=770,200"
+column is *not* a larger real dataset: it's the same 3,851-row file
+unioned with itself 200 times (`python -m src.benchmark --replicate 200`),
+repartitioned to 8 partitions, so it has the same 4 groups and the same
+duplicated coordinates repeated many times over. It's useful for seeing
+how the gap between implementations trends as row count grows, but it is
+*not* a substitute for real data volume or diversity, and these are
+wall-clock numbers from one machine, not a controlled benchmark
+environment -- treat the trend as indicative, not the absolute seconds.
+Each cell is the mean of 5 timed runs (after one untimed warm-up run):
+
+| implementation | n=3,851 (project dataset, single run of real rows) | n=770,200 (same rows, unioned x200) |
 |---|---|---|
 | Python UDF | 0.524 s | 1.252 s |
 | pandas_udf | 0.372 s | 0.959 s |
@@ -114,9 +163,9 @@ The gap is real but modest here because the per-row computation is a few
 FLOPs and this runs on a single machine -- fixed per-task overhead still
 makes up a large share of the total. On a genuine cluster, with a more
 expensive per-row function, or across many more partitions, the same
-mechanism produces a much larger gap; rerun `python -m src.benchmark
---replicate N` to see the trend on your own hardware rather than trusting
-numbers measured on someone else's laptop.
+mechanism would be expected to produce a much larger gap; rerun `python -m
+src.benchmark --replicate N` on your own hardware to check that trend
+rather than trusting numbers measured on someone else's laptop.
 
 ## How to run
 

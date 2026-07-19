@@ -6,13 +6,14 @@ section.
 import json
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
+
 from src.centrality import most_central_per_group
 from src.distance import euclidean_degrees, haversine, utm_projected
 
 DATA_PATH = Path(__file__).parent.parent / "data" / "centros_educativos_madrid.json"
 DEGREES_TO_METERS_NAIVE = 111_320  # what someone would use if they (wrongly) treated 1 degree as a fixed distance
-
-import pandas as pd  # noqa: E402
 
 
 def main() -> None:
@@ -64,6 +65,43 @@ def main() -> None:
         same = "yes" if c["center_id"] == m["center_id"] else "NO"
         apart_m = utm_projected(c["utm_x"], c["utm_y"], m["utm_x"], m["utm_y"])
         print(f"| {group} | {group_size} | {c['center_name']} | {m['center_name']} | {same} | {apart_m:.0f} |")
+
+    print(
+        "\n## Why centroid and medoid diverge: mean-vs-median offset and rural tail\n"
+    )
+    print(
+        "| ownership | mean-to-median offset (m) | centers >20km from median | "
+        "centroid pick dist. to median (m) | medoid pick dist. to median (m) | "
+        "centroid shift after dropping single farthest point (m) |"
+    )
+    print("|---|---|---|---|---|---|")
+    for group in sorted(df["ownership"].unique()):
+        g = df[df.ownership == group]
+        mean_x, mean_y = g["utm_x"].mean(), g["utm_y"].mean()
+        median_x, median_y = g["utm_x"].median(), g["utm_y"].median()
+        mean_to_median = utm_projected(mean_x, mean_y, median_x, median_y)
+
+        dist_from_median = np.sqrt((g["utm_x"] - median_x) ** 2 + (g["utm_y"] - median_y) ** 2)
+        pct_far = (dist_from_median > 20_000).mean() * 100
+
+        c = utm_picks[utm_picks["ownership"] == group].iloc[0]
+        m = medoid_picks[medoid_picks["ownership"] == group].iloc[0]
+        c_to_median = utm_projected(c["utm_x"], c["utm_y"], median_x, median_y)
+        m_to_median = utm_projected(m["utm_x"], m["utm_y"], median_x, median_y)
+
+        # Single-outlier-removal check: does dropping just the farthest
+        # point (from the centroid) move the centroid anywhere near the
+        # full centroid-medoid gap? If not, a lone outlier isn't the story.
+        dist_from_mean = np.sqrt((g["utm_x"] - mean_x) ** 2 + (g["utm_y"] - mean_y) ** 2)
+        farthest_id = g.loc[dist_from_mean.idxmax(), "center_id"]
+        g_no_outlier = g[g["center_id"] != farthest_id]
+        mean_x2, mean_y2 = g_no_outlier["utm_x"].mean(), g_no_outlier["utm_y"].mean()
+        outlier_shift = utm_projected(mean_x, mean_y, mean_x2, mean_y2)
+
+        print(
+            f"| {group} | {mean_to_median:.0f} | {pct_far:.0f}% | "
+            f"{c_to_median:.0f} | {m_to_median:.0f} | {outlier_shift:.1f} |"
+        )
 
 
 if __name__ == "__main__":
