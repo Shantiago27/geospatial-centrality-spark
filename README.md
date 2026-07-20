@@ -73,19 +73,45 @@ naive metric, because these ownership groups form fairly compact clusters
 -- but the magnitude it reports would still mislead anyone reading it as
 meters, and a more elongated group could easily flip the pick.
 
+**That metric-invariance is a robustness result at this dataset's urban
+scale, not a claim that distance metric never matters.** We checked all
+three metrics (`euclidean`, `haversine`, `utm`) against *both* centrality
+definitions -- not just centroid -- and every metric agreed on the same
+picked center, for every group, for both centroid and medoid:
+
+```
+uv run python scripts/compare_centrality_methods.py
+```
+
+The reason this holds is specific to the input: the Comunidad de Madrid
+spans roughly 50-80 km edge to edge, small enough that the naive
+degrees-as-meters distortion (up to +29.6%, see above) doesn't reorder
+which candidate is closest within a group. That margin shrinks as the
+area covered grows -- at national or continental scale, where longitude
+foreshortening varies enormously across latitudes and a naive metric's
+error is no longer a near-constant local factor, the same naive `euclidean`
+metric would be expected to flip picks, not just mis-scale a distance. Rerun
+the command above on a differently-shaped or larger-scale dataset before
+assuming this invariance transfers.
+
 **Centroid vs. medoid is the choice that actually moves the answer.**
 Both picks are real dataset rows -- verified by joining the picked
 `center_id` back against the source file, not just trusting the pipeline
 -- not synthetic averaged points; only the intermediate centroid location
 used to rank candidates is a computed average. All four groups picked a
-*different* center under the two definitions, by 1.2-1.6 km each time:
+*different* center under the two definitions, and -- per the
+metric-invariance check above -- by the same margin regardless of which
+distance metric selected the centers:
 
-| ownership | group size | centroid pick | medoid pick | apart |
+| ownership | group size | centroid pick | medoid pick | apart (km, great-circle) |
 |---|---|---|---|---|
-| PRIVADO | 1,221 | Instituto Vox | Teo Bretón | 1,555 m |
-| PRIVADO CONCERTADO | 552 | Teide II | Real Colegio Santa Isabel-La Asunción | 1,260 m |
-| PUBLICO | 2,056 | San Isidro | San Eugenio y San Isidro | 1,221 m |
-| PUBLICO-TITULARIDAD PRIVADA | 22 | Escuela Infantil Complejo Cuzco | Centro Infantil Ministerio de Fomento | 1,479 m |
+| PRIVADO | 1,221 | Instituto Vox | Teo Bretón | 1.552 |
+| PRIVADO CONCERTADO | 552 | Teide II | Real Colegio Santa Isabel-La Asunción | 1.258 |
+| PUBLICO | 2,056 | San Isidro | San Eugenio y San Isidro | 1.223 |
+| PUBLICO-TITULARIDAD PRIVADA | 22 | Escuela Infantil Complejo Cuzco | Centro Infantil Ministerio de Fomento | 1.481 |
+
+Reproduce this table with the same command as above:
+`uv run python scripts/compare_centrality_methods.py`.
 
 *Why they diverge, checked against the data rather than assumed:* these
 ownership groups span the entire Comunidad de Madrid region -- a dense
