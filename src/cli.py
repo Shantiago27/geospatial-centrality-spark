@@ -25,7 +25,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", required=True, help="Output path for the result (no default -- must be set explicitly)")
     parser.add_argument("--output-format", choices=["json", "csv", "parquet"], default="json")
     parser.add_argument("--distance", choices=["euclidean", "haversine", "utm"], default="utm")
-    parser.add_argument("--method", choices=["centroid", "medoid"], default="centroid")
+    parser.add_argument(
+        "--method",
+        choices=["centroid", "medoid"],
+        default="centroid",
+        help=(
+            "'centroid': the real center nearest to the group's mean position "
+            "(not the mean position itself). 'medoid': the real center minimizing "
+            "total distance to every other member of its group."
+        ),
+    )
     parser.add_argument(
         "--implementation",
         choices=["udf", "pandas_udf", "native"],

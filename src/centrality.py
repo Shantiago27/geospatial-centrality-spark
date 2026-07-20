@@ -24,6 +24,13 @@ DistanceFn = Callable[[float, float, float, float], float]
 def nearest_to_centroid(
     group: pd.DataFrame, x_col: str, y_col: str, distance_fn: DistanceFn
 ) -> pd.Series:
+    """Return the real row in `group` closest to the group's mean position.
+
+    The centroid itself (`centroid_x`, `centroid_y` below) is a computed
+    average, not a dataset row -- it exists only to rank candidates by
+    distance. What this returns is always an actual member of `group`,
+    never that averaged point.
+    """
     centroid_x, centroid_y = group[x_col].mean(), group[y_col].mean()
     distances = group.apply(
         lambda row: distance_fn(row[x_col], row[y_col], centroid_x, centroid_y), axis=1
@@ -48,6 +55,12 @@ def most_central_per_group(
     distance_fn: DistanceFn,
     method: str,
 ) -> pd.DataFrame:
+    """Pick one row per group under `method`.
+
+    `method="centroid"` returns the group's nearest-to-centroid pick, not
+    the centroid coordinates themselves -- see `nearest_to_centroid`.
+    `method="medoid"` returns the medoid, per `medoid` above.
+    """
     if method not in ("centroid", "medoid"):
         raise ValueError(f"Unknown method: {method!r}. Use 'centroid' or 'medoid'.")
     selector = nearest_to_centroid if method == "centroid" else medoid

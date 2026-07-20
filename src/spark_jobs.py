@@ -95,6 +95,13 @@ IMPLEMENTATIONS = {
 def most_central_by_centroid(
     df: DataFrame, group_col: str, x_col: str, y_col: str, method: str, implementation: str
 ) -> DataFrame:
+    """Return, per group, the real row nearest to that group's centroid.
+
+    The centroid (`centroid_x`, `centroid_y`) is a computed mean used only
+    to rank candidates -- it is dropped from the result below and never
+    itself returned. This is the Spark-native counterpart to
+    `src.centrality.nearest_to_centroid`.
+    """
     with_distance = IMPLEMENTATIONS[implementation](df, group_col, x_col, y_col, method)
     window_spec = Window.partitionBy(group_col).orderBy("distance")
     ranked = with_distance.withColumn("rank", F.rank().over(window_spec))
