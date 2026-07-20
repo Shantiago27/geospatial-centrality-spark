@@ -76,8 +76,9 @@ meters, and a more elongated group could easily flip the pick.
 **That metric-invariance is a robustness result at this dataset's urban
 scale, not a claim that distance metric never matters.** We checked all
 three metrics (`euclidean`, `haversine`, `utm`) against *both* centrality
-definitions -- not just centroid -- and every metric agreed on the same
-picked center, for every group, for both centroid and medoid:
+definitions -- not just nearest-to-centroid -- and every metric agreed on
+the same picked center, for every group, for both nearest-to-centroid and
+medoid:
 
 ```
 uv run python scripts/compare_centrality_methods.py
@@ -94,16 +95,18 @@ metric would be expected to flip picks, not just mis-scale a distance. Rerun
 the command above on a differently-shaped or larger-scale dataset before
 assuming this invariance transfers.
 
-**Centroid vs. medoid is the choice that actually moves the answer.**
-Both picks are real dataset rows -- verified by joining the picked
-`center_id` back against the source file, not just trusting the pipeline
--- not synthetic averaged points; only the intermediate centroid location
-used to rank candidates is a computed average. All four groups picked a
-*different* center under the two definitions, and -- per the
+**Nearest-to-centroid vs. medoid is the choice that actually moves the
+answer.** Both picks are real dataset rows -- verified by joining the
+picked `center_id` back against the source file, not just trusting the
+pipeline -- not synthetic averaged points; only the intermediate centroid
+location used to rank candidates is a computed average (see
+[`src/centrality.py`](src/centrality.py): `nearest_to_centroid` returns an
+actual group member, never the averaged point itself). All four groups
+picked a *different* center under the two definitions, and -- per the
 metric-invariance check above -- by the same margin regardless of which
 distance metric selected the centers:
 
-| ownership | group size | centroid pick | medoid pick | apart (km, great-circle) |
+| ownership | group size | nearest-to-centroid pick | medoid pick | apart (km, great-circle) |
 |---|---|---|---|---|
 | PRIVADO | 1,221 | Instituto Vox | Teo Bretón | 1.552 |
 | PRIVADO CONCERTADO | 552 | Teide II | Real Colegio Santa Isabel-La Asunción | 1.258 |
@@ -135,8 +138,8 @@ point, isn't pulled the same way: being near the *dense* cluster minimizes
 a sum far more effectively than sitting at the skewed geometric average
 does, so it stays anchored close to where centers actually concentrate. We
 checked this directly -- in 3 of the 4 groups, the medoid pick sits
-noticeably closer to the group's median position than the centroid pick
-does (e.g. PUBLICO: 111 m vs. 1,333 m from the median; PRIVADO: 375 m vs.
+noticeably closer to the group's median position than the nearest-to-centroid
+pick does (e.g. PUBLICO: 111 m vs. 1,333 m from the median; PRIVADO: 375 m vs.
 1,336 m). We also checked the simpler "one extreme point" version of this
 hypothesis and it doesn't hold: removing only the single farthest-out
 center shifts the centroid by just 35-116 m in the three larger groups --
@@ -149,7 +152,7 @@ outlier -- see `scripts/compare_distance_methods.py` for the full
 per-group breakdown behind these numbers.
 
 Which definition is "right" depends entirely on what the result is for: a
-centroid pick minimizes distance from the *average* position (better if
+nearest-to-centroid pick minimizes distance from the *average* position (better if
 you can't weight by who's actually attending); a medoid pick minimizes
 total travel for everyone in the group (better if attendance is roughly
 uniform across members) and is guaranteed to be a real, reachable
