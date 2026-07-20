@@ -1,3 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "geospatial-centrality-spark"
+version = "0.1.0"
+description = "Finds the most central educational center per ownership group in the Comunidad de Madrid using PySpark."
+requires-python = ">=3.11"
+dependencies = [
+    "pyspark==3.5.3",
+    "pandas>=2.0",
+    "pyarrow>=14.0",
+    "numpy>=1.24",
+    "pyproj>=3.6",
+    "pytest>=8.0",
+    "matplotlib>=3.8",
+    "geopy>=2.4",
+]
+
+[tool.setuptools]
+packages = ["src"]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
