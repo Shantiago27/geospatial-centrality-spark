@@ -37,6 +37,16 @@ column throughout.
 
 ## Approach
 
+```mermaid
+flowchart TD
+    A[Official Madrid open data<br/>7.757 centers, UTM coordinates] --> B[prepare_data.py<br/>Filter to 3.851, add lon/lat]
+    B --> C[Committed JSON<br/>Clean data snapshot]
+    C --> D{Choose distance<br/>utm - haversine<br/>euclidean = error case}
+    C --> E{Choose central<br/>centroid = average<br/>medoid = robust}
+    D --> F[Most central center per group<br/>One center per ownership type, with PySpark]
+    E --> F
+```
+ 
 - **Two definitions of "most central"** ([`src/centrality.py`](src/centrality.py), [`src/spark_jobs.py`](src/spark_jobs.py)):
   - *nearest-to-centroid* -- the center closest to the group's average position. O(n) per group, but a centroid can be pulled off-center by outliers.
   - *medoid* -- the center minimizing the sum of distances to every other center in its group. O(n²) per group (implemented as a self-join), but it's always an actual member of the group and more robust to outliers.
